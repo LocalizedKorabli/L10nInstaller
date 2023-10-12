@@ -13,11 +13,14 @@
 
 import os.path
 import shutil
+import subprocess
 import webbrowser
 import xml.etree.ElementTree as ETree
 from pathlib import Path
 
-version = "2023.10.12.1849"
+version = "2023.10.12.1910"
+
+lgc_file_name = "lgc_api.exe"
 
 text_welcome_message = f'''战舰世界LESTA服汉化安装器
 作者：北斗余晖
@@ -89,7 +92,7 @@ def run():
     if debug == "debug":
         print("进入DEBUG模式，将抛出异常。")
         raise RuntimeError("DEBUG")
-    lgc_found = os.path.isfile("lgc_api.exe")
+    lgc_found = os.path.isfile(lgc_file_name)
     if not lgc_found:
         confirm = input(
             "未找到战舰世界启动器程序lgc_api.exe，程序位置错误或战舰世界安装不完整？若仍要继续，请输入Y后按回车键。")
@@ -186,17 +189,17 @@ def run():
                     confirm = input(
                         "修改并安装locale_config.xml未成功，是否使用程序自带备用文件？若需要，请输入Y后按回车键。")
                     if str(confirm).lower() != "y":
-                        input("安装已结束，按回车键退出。")
+                        input("安装已结束，按回车键继续。")
                         return
                 else:
-                    input("安装已结束，按回车键退出。")
+                    input("安装已结束，按回车键继续。")
                     return
             with open(first_cfg_path, "w", encoding="utf-8") as file:
                 file.write(text_builtin_cfg)
             if second_dir_exists:
                 with open(second_cfg_path, "w", encoding="utf-8") as file:
                     file.write(text_builtin_cfg)
-            input("安装已结束，按回车键退出。")
+            input("安装已结束，按回车键继续。")
         else:
             if not use_builtin_cfg:
                 if not _modify_cfg(first_cfg_path, _get_res_mods_locale_cfg_path(first), False):
@@ -208,10 +211,10 @@ def run():
                     confirm = input(
                         "修改并安装locale_config.xml未成功，是否使用程序自带备用文件？若需要，请输入Y后按回车键。")
                     if str(confirm).lower() != "y":
-                        input("安装已结束，按回车键退出。")
+                        input("安装已结束，按回车键继续。")
                         return
                 else:
-                    input("安装已结束，按回车键退出。")
+                    input("安装已结束，按回车键继续。")
                     return
 
             with open(_get_res_mods_locale_cfg_path(first)) as file:
@@ -219,9 +222,9 @@ def run():
             if second_dir_exists:
                 with open(_get_res_mods_locale_cfg_path(second)) as file:
                     file.write(text_builtin_cfg)
-            input("安装已结束，按回车键退出。")
+            input("安装已结束，按回车键继续。")
     else:
-        input("已跳过语言配置文件安装，按回车键退出。")
+        input("已跳过语言配置文件安装，按回车键继续。")
 
 
 def _get_mo_path(version: str) -> Path:
@@ -265,10 +268,14 @@ def _modify_cfg(cfg_path_old: Path, cfg_path_new: Path, backup: bool) -> bool:
 
 try:
     run()
+    if os.path.isfile(lgc_file_name):
+        run_game = input("是否启动战舰世界？输入Y后按回车键启动。")
+        if run_game.lower() == "y":
+            subprocess.run(lgc_file_name)
 except Exception as e:
     feedback = input(f"发生异常！异常信息：{e}。" + text_report_choice)
     if feedback == "1":
         webbrowser.open("https://gitee.com/nova-committee/korabli-LESTA-L10N/issues/new")
     elif feedback == "2":
         webbrowser.open("https://github.com/Nova-Committee/Korabli-LESTA-L10N/issues/new")
-    input("按回车键退出。")
+input("按回车键退出。")
