@@ -18,7 +18,7 @@ import webbrowser
 import xml.etree.ElementTree as ETree
 from pathlib import Path
 
-version = "2023.10.12.1910"
+version = "2023.11.09.1104"
 
 lgc_file_name = "lgc_api.exe"
 
@@ -61,6 +61,8 @@ text_builtin_cfg = '''<locale_config>
 '''
 
 text_mode_selection = "请选择安装模式："
+
+text_use_builtin = "是否使用程序自带备用文件？输入Y以同意。若上次安装后游戏字符仍被显示为空心方块，请考虑使用备用文件。"
 
 text_mo_replace_mode = '''汉化文件安装模式：
 1.安装到res_mods文件夹下（推荐：客户端非版本大更新时不会重置语言文件）；
@@ -170,14 +172,14 @@ def run():
     except ValueError:
         installation = 0
 
+    use_builtin_cfg = input(text_use_builtin).lower() == "y"
+
     if installation == 1 or installation == 2:
         first_cfg_path = _get_locale_cfg_path(first)
         second_cfg_path = _get_locale_cfg_path(second)
-        if not os.path.isfile(first_cfg_path) and not os.path.isfile(second_cfg_path):
+        if not use_builtin_cfg and not os.path.isfile(first_cfg_path) and not os.path.isfile(second_cfg_path):
             print("未在指定的文件夹下找到locale_config.xml文件，将使用程序自带的备用文件。")
             use_builtin_cfg = True
-        else:
-            use_builtin_cfg = False
         if installation == 2:
             if not use_builtin_cfg:
                 if not _modify_cfg(first_cfg_path, first_cfg_path, True):
@@ -217,34 +219,34 @@ def run():
                     input("安装已结束，按回车键继续。")
                     return
 
-            with open(_get_res_mods_locale_cfg_path(first)) as file:
+            with open(_get_res_mods_locale_cfg_path(first), "w", encoding="utf-8") as file:
                 file.write(text_builtin_cfg)
             if second_dir_exists:
-                with open(_get_res_mods_locale_cfg_path(second)) as file:
+                with open(_get_res_mods_locale_cfg_path(second), "w", encoding="utf-8") as file:
                     file.write(text_builtin_cfg)
             input("安装已结束，按回车键继续。")
     else:
         input("已跳过语言配置文件安装，按回车键继续。")
 
 
-def _get_mo_path(version: str) -> Path:
-    return Path("bin").joinpath(version).joinpath("res").joinpath("texts").joinpath("ru").joinpath(
+def _get_mo_path(game_version: str) -> Path:
+    return Path("bin").joinpath(game_version).joinpath("res").joinpath("texts").joinpath("ru").joinpath(
         "LC_MESSAGES").joinpath("global.mo")
 
 
-def _get_res_mods_mo_path(version: str) -> Path:
-    dir_path = Path("bin").joinpath(version).joinpath("res_mods").joinpath("texts").joinpath("ru").joinpath(
+def _get_res_mods_mo_path(game_version: str) -> Path:
+    dir_path = Path("bin").joinpath(game_version).joinpath("res_mods").joinpath("texts").joinpath("ru").joinpath(
         "LC_MESSAGES")
     os.makedirs(dir_path, exist_ok=True)
     return dir_path.joinpath("global.mo")
 
 
-def _get_locale_cfg_path(version: str) -> Path:
-    return Path("bin").joinpath(version).joinpath("res").joinpath("locale_config.xml")
+def _get_locale_cfg_path(game_version: str) -> Path:
+    return Path("bin").joinpath(game_version).joinpath("res").joinpath("locale_config.xml")
 
 
-def _get_res_mods_locale_cfg_path(version: str) -> Path:
-    dir_path = Path("bin").joinpath(version).joinpath("res_mods")
+def _get_res_mods_locale_cfg_path(game_version: str) -> Path:
+    dir_path = Path("bin").joinpath(game_version).joinpath("res_mods")
     os.makedirs(dir_path, exist_ok=True)
     return dir_path.joinpath("locale_config.xml")
 
