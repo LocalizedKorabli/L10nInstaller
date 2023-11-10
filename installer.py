@@ -18,7 +18,7 @@ import webbrowser
 import xml.etree.ElementTree as ETree
 from pathlib import Path
 
-version = "2023.11.09.1104"
+version = "2023.11.10.1919"
 
 lgc_file_name = "lgc_api.exe"
 
@@ -63,6 +63,12 @@ text_builtin_cfg = '''<locale_config>
 text_mode_selection = "请选择安装模式："
 
 text_use_builtin = "是否使用程序自带备用文件？输入Y以同意。若上次安装后游戏字符仍被显示为空心方块，请考虑使用备用文件。"
+
+text_general_installation_mode = '''全局安装模式
+1.快速安装
+2.自定义安装
+3.退出程序
+'''
 
 text_mo_replace_mode = '''汉化文件安装模式：
 1.安装到res_mods文件夹下（推荐：客户端非版本大更新时不会重置语言文件）；
@@ -134,13 +140,29 @@ def run():
     while not os.path.isfile(global_mo_path):
         global_mo_path = input("global.mo文件路径错误，请重新输入：")
 
-    print(text_mo_replace_mode)
+    print(text_mode_selection)
     try:
-        installation = int(input(text_mode_selection))
+        mode = int(input(text_general_installation_mode))
     except ValueError:
-        installation = 0
+        mode = 2
+    if mode == 3:
+        return
+    quick = mode == 1
+    installation = 0
+    if not quick:
+        print(text_mo_replace_mode)
+        try:
+            installation = int(input(text_mode_selection))
+        except ValueError:
+            installation = 0
 
-    if installation == 2:
+    if quick or installation == 1:
+        shutil.copy(global_mo_path, _get_res_mods_mo_path(first))
+        if second_dir_exists:
+            shutil.copy(global_mo_path, _get_res_mods_mo_path(second))
+        if not quick:
+            input("汉化文件安装完成，请不要退出程序，按回车键继续。")
+    elif installation == 2:
         first_mo_path = _get_mo_path(first)
         first_mo_found = os.path.isfile(first_mo_path)
         if not first_mo_found:
@@ -157,24 +179,20 @@ def run():
             else:
                 shutil.copy(second_mo_path, str(second_mo_path) + ".old")
             shutil.copy(global_mo_path, second_mo_path)
-        input("汉化文件安装完成，按回车键继续。")
-    elif installation == 1:
-        shutil.copy(global_mo_path, _get_res_mods_mo_path(first))
-        if second_dir_exists:
-            shutil.copy(global_mo_path, _get_res_mods_mo_path(second))
-        input("汉化文件安装完成，按回车键继续。")
+        input("汉化文件安装完成，请不要退出程序，按回车键继续。")
     else:
         input("已跳过汉化文件安装，按回车键继续。")
 
-    print(text_locale_cfg_replace_mode)
-    try:
-        installation = int(input(text_mode_selection))
-    except ValueError:
-        installation = 0
+    if not quick:
+        print(text_locale_cfg_replace_mode)
+        try:
+            installation = int(input(text_mode_selection))
+        except ValueError:
+            installation = 0
 
-    use_builtin_cfg = input(text_use_builtin).lower() == "y"
+    use_builtin_cfg = quick or input(text_use_builtin).lower() == "y"
 
-    if installation == 1 or installation == 2:
+    if quick or installation == 1 or installation == 2:
         first_cfg_path = _get_locale_cfg_path(first)
         second_cfg_path = _get_locale_cfg_path(second)
         if not use_builtin_cfg and not os.path.isfile(first_cfg_path) and not os.path.isfile(second_cfg_path):
