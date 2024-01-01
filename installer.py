@@ -18,9 +18,14 @@ import webbrowser
 import xml.etree.ElementTree as ETree
 from pathlib import Path
 
-version = "2023.11.10.1919"
+version = "2024.01.01.1335"
 
-lgc_file_name = "lgc_api.exe"
+available_launchers = [
+    "lgc_api.exe",
+    "wgc_api.exe"
+]
+
+launcher_file = ""
 
 text_welcome_message = f'''战舰世界LESTA服汉化安装器
 作者：北斗余晖
@@ -65,10 +70,18 @@ text_mode_selection = "请选择安装模式："
 text_use_builtin = "是否使用程序自带备用文件？输入Y以同意。若上次安装后游戏字符仍被显示为空心方块，请考虑使用备用文件。"
 
 text_general_installation_mode = '''全局安装模式
-1.快速安装
+1.快速安装（LESTA服）
 2.自定义安装
 3.退出程序
 '''
+
+text_server_list = '''服务器列表：
+1.LESTA服（俄服）
+2.直营服（美/亚/欧服）
+3.360服（国服）
+'''
+
+text_select_server = "请选择客户端所在的服务器："
 
 text_mo_replace_mode = '''汉化文件安装模式：
 1.安装到res_mods文件夹下（推荐：客户端非版本大更新时不会重置语言文件）；
@@ -93,6 +106,12 @@ text_report_desc = '''请以“汉化安装器报错”为标题创建一个新I
 2.异常发生时，汉化安装正进行到哪一步。
 '''
 
+server_dict: dict[str, str] = {
+    '1': 'ru',
+    '2': 'zh_sg',
+    '3': 'zh'
+}
+
 
 def run():
     print(text_welcome_message)
@@ -100,10 +119,15 @@ def run():
     if debug == "debug":
         print("进入DEBUG模式，将抛出异常。")
         raise RuntimeError("DEBUG")
-    lgc_found = os.path.isfile(lgc_file_name)
-    if not lgc_found:
+    global launcher_file
+    for launcher in available_launchers:
+        if os.path.isfile(launcher):
+            launcher_file = launcher
+            print(f"已找到战舰世界启动器程序{launcher_file}。")
+            break
+    if launcher_file == "":
         confirm = input(
-            "未找到战舰世界启动器程序lgc_api.exe，程序位置错误或战舰世界安装不完整？若仍要继续，请输入Y后按回车键。")
+            "未找到战舰世界启动器程序，程序位置错误或战舰世界安装不完整？若仍要继续，请输入Y后按回车键。")
         if str(confirm).lower() != "y":
             return
 
@@ -149,7 +173,14 @@ def run():
         return
     quick = mode == 1
     installation = 0
+    server = "ru"
     if not quick:
+        print(text_server_list)
+        try:
+            server = server_dict.get(input(text_select_server))
+        except ValueError:
+            server = server_dict.get('1')
+            print("输入错误，默认为LESTA服")
         print(text_mo_replace_mode)
         try:
             installation = int(input(text_mode_selection))
@@ -157,13 +188,13 @@ def run():
             installation = 0
 
     if quick or installation == 1:
-        shutil.copy(global_mo_path, _get_res_mods_mo_path(first))
+        shutil.copy(global_mo_path, _get_res_mods_mo_path(first, server))
         if second_dir_exists:
-            shutil.copy(global_mo_path, _get_res_mods_mo_path(second))
+            shutil.copy(global_mo_path, _get_res_mods_mo_path(second, server))
         if not quick:
             input("汉化文件安装完成，请不要退出程序，按回车键继续。")
     elif installation == 2:
-        first_mo_path = _get_mo_path(first)
+        first_mo_path = _get_mo_path(first, server)
         first_mo_found = os.path.isfile(first_mo_path)
         if not first_mo_found:
             print(f"未在{first}版本文件夹下找到global.mo文件")
@@ -171,7 +202,7 @@ def run():
             shutil.copy(first_mo_path, str(first_mo_path) + ".old")
         shutil.copy(global_mo_path, first_mo_path)
 
-        second_mo_path = _get_mo_path(second)
+        second_mo_path = _get_mo_path(second, server)
         second_mo_found = os.path.isfile(second_mo_path)
         if second_dir_exists:
             if not second_mo_found:
@@ -183,16 +214,22 @@ def run():
     else:
         input("已跳过汉化文件安装，按回车键继续。")
 
+    needs_locale = server == "ru"
+
     if not quick:
-        print(text_locale_cfg_replace_mode)
-        try:
-            installation = int(input(text_mode_selection))
-        except ValueError:
+        if not needs_locale:
             installation = 0
+        else:
+            print(text_locale_cfg_replace_mode)
+            try:
+                installation = int(input(text_mode_selection))
+            except ValueError:
+                installation = 0
 
-    use_builtin_cfg = quick or input(text_use_builtin).lower() == "y"
+    if needs_locale:
+        use_builtin_cfg = quick or input(text_use_builtin).lower() == "y"
 
-    if quick or installation == 1 or installation == 2:
+    if needs_locale and (quick or installation == 1 or installation == 2):
         first_cfg_path = _get_locale_cfg_path(first)
         second_cfg_path = _get_locale_cfg_path(second)
         if not use_builtin_cfg and not os.path.isfile(first_cfg_path) and not os.path.isfile(second_cfg_path):
@@ -247,13 +284,13 @@ def run():
         input("已跳过语言配置文件安装，按回车键继续。")
 
 
-def _get_mo_path(game_version: str) -> Path:
-    return Path("bin").joinpath(game_version).joinpath("res").joinpath("texts").joinpath("ru").joinpath(
+def _get_mo_path(game_version: str, server: str) -> Path:
+    return Path("bin").joinpath(game_version).joinpath("res").joinpath("texts").joinpath(server).joinpath(
         "LC_MESSAGES").joinpath("global.mo")
 
 
-def _get_res_mods_mo_path(game_version: str) -> Path:
-    dir_path = Path("bin").joinpath(game_version).joinpath("res_mods").joinpath("texts").joinpath("ru").joinpath(
+def _get_res_mods_mo_path(game_version: str, server: str) -> Path:
+    dir_path = Path("bin").joinpath(game_version).joinpath("res_mods").joinpath("texts").joinpath(server).joinpath(
         "LC_MESSAGES")
     os.makedirs(dir_path, exist_ok=True)
     return dir_path.joinpath("global.mo")
@@ -288,10 +325,10 @@ def _modify_cfg(cfg_path_old: Path, cfg_path_new: Path, backup: bool) -> bool:
 
 try:
     run()
-    if os.path.isfile(lgc_file_name):
+    if launcher_file != "" and os.path.isfile(launcher_file):
         run_game = input("是否启动战舰世界？输入Y后按回车键启动。")
         if run_game.lower() == "y":
-            subprocess.run(lgc_file_name)
+            subprocess.run(launcher_file)
 except Exception as e:
     feedback = input(f"发生异常！异常信息：{e}。" + text_report_choice)
     if feedback == "1":
