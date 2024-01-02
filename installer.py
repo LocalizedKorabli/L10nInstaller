@@ -18,7 +18,7 @@ import webbrowser
 import xml.etree.ElementTree as ETree
 from pathlib import Path
 
-version = "2024.01.01.1335"
+version = "2024.01.02.1716"
 
 available_launchers = [
     "lgc_api.exe",
@@ -27,7 +27,7 @@ available_launchers = [
 
 launcher_file = ""
 
-text_welcome_message = f'''战舰世界LESTA服汉化安装器
+text_welcome_message = f'''战舰世界本地化安装器
 作者：北斗余晖
 版本：{version}
 许可证：GNU-AGPL-3.0-only
@@ -42,7 +42,7 @@ text_builtin_cfg = '''<locale_config>
     
 
     <lang_mapping>
-        <lang acceptLang="ru" egs="ru" fonts="CN" full="russian" languageBar="false" localeRfcName="ru" short="ru" />
+        <lang acceptLang="ru" egs="ru" fonts="CN" full="russian" languageBar="true" localeRfcName="ru" short="ru" />
         <lang acceptLang="en" egs="en-US" fonts="EU" full="english" languageBar="false" localeRfcName="en" short="en" />
         <lang acceptLang="de,en" egs="de" fonts="EU" full="german" languageBar="false" localeRfcName="de" short="de" />
         <lang acceptLang="pl,en" egs="pl" fonts="EU" full="polish" languageBar="false" localeRfcName="pl" short="pl" />
