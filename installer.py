@@ -226,6 +226,8 @@ def run():
             except ValueError:
                 installation = 0
 
+    use_builtin_cfg = False
+
     if needs_locale:
         use_builtin_cfg = quick or input(text_use_builtin).lower() == "y"
 
