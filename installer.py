@@ -18,7 +18,7 @@ import webbrowser
 import xml.etree.ElementTree as ETree
 from pathlib import Path
 
-version = "2024.01.02.1716"
+version = "2024.02.17.2312"
 
 available_launchers = [
     "lgc_api.exe",
@@ -325,16 +325,19 @@ def _modify_cfg(cfg_path_old: Path, cfg_path_new: Path, backup: bool) -> bool:
     return executed
 
 
+exit_with_confirm = True
 try:
     run()
     if launcher_file != "" and os.path.isfile(launcher_file):
         run_game = input("是否启动战舰世界？输入Y后按回车键启动。")
         if run_game.lower() == "y":
+            exit_with_confirm = False
             subprocess.run(launcher_file)
 except Exception as e:
     feedback = input(f"发生异常！异常信息：{e}。" + text_report_choice)
     if feedback == "1":
         webbrowser.open("https://gitee.com/nova-committee/korabli-LESTA-L10N/issues/new")
     elif feedback == "2":
-        webbrowser.open("https://github.com/Nova-Committee/Korabli-LESTA-L10N/issues/new")
-input("按回车键退出。")
+        webbrowser.open("https://github.com/LocalizedKorabli/L10nInstaller/issues/new")
+if exit_with_confirm:
+    input("按回车键退出。")
