@@ -14,11 +14,17 @@
 import os.path
 import shutil
 import subprocess
+import sys
+import time
+import urllib.request
 import webbrowser
 import xml.etree.ElementTree as ETree
+import zipfile
 from pathlib import Path
 
-version = "2024.02.17.2312"
+import requests
+
+version = "2024.03.24.2339"
 
 available_launchers = [
     "lgc_api.exe",
@@ -36,36 +42,23 @@ text_welcome_message = f'''战舰世界本地化安装器
 '''
 
 text_builtin_cfg = '''<locale_config>
-    <locale_id>en</locale_id>
+    <locale_id>ru</locale_id>
     <text_path>../res/texts</text_path>
     <text_domain>global</text_domain>
-    
 
     <lang_mapping>
         <lang acceptLang="ru" egs="ru" fonts="CN" full="russian" languageBar="true" localeRfcName="ru" short="ru" />
-        <lang acceptLang="en" egs="en-US" fonts="EU" full="english" languageBar="false" localeRfcName="en" short="en" />
-        <lang acceptLang="de,en" egs="de" fonts="EU" full="german" languageBar="false" localeRfcName="de" short="de" />
-        <lang acceptLang="pl,en" egs="pl" fonts="EU" full="polish" languageBar="false" localeRfcName="pl" short="pl" />
-        <lang acceptLang="fr,en" egs="fr" fonts="EU" full="french" languageBar="false" localeRfcName="fr" short="fr" />
-        <lang acceptLang="es,en" egs="es-ES" fonts="EU" full="spanish" languageBar="false" localeRfcName="es" short="es" />
-        <lang acceptLang="cs,en" egs="" fonts="EU" full="czech" languageBar="false" localeRfcName="cs" short="cs" />
-        <lang acceptLang="tr,en" egs="tr" fonts="EU" full="turkish" languageBar="false" localeRfcName="tr" short="tr" />
-        <lang acceptLang="it,en" egs="it" fonts="EU" full="italian" languageBar="false" localeRfcName="it" short="it" />
-        <lang acceptLang="ja,en" egs="ja" fonts="ASIA" full="japanese" languageBar="false" localeRfcName="ja" short="ja" />
-        <lang acceptLang="zh-Tw,en" egs="zh-Hant" fonts="CN" full="tchinese" languageBar="true" localeRfcName="zh-tw" short="zh_tw" />
-        <lang acceptLang="th,en" egs="th" fonts="TH" full="thai" languageBar="false" localeRfcName="th" short="th" />
-        <lang acceptLang="ko,en" egs="ko" fonts="KO" full="koreana" languageBar="false" localeRfcName="ko" short="ko" />
-        <lang acceptLang="zh-Sg,en" egs="zh-Hans" fonts="CN" full="schinese" languageBar="true" localeRfcName="zh-sg" short="zh_sg" />
-        <lang acceptLang="zh-Cn,en" egs="" fonts="CN" full="schinese_kong" languageBar="true" localeRfcName="zh-cn" short="zh_cn" />
-        <lang acceptLang="pt-Br,pt,en" egs="pt-BR" fonts="EU" full="brazilian" languageBar="false" localeRfcName="pt-br" short="pt_br" />
-        <lang acceptLang="uk,ru,en" egs="" fonts="RU" full="ukrainian" languageBar="false" localeRfcName="uk" short="uk" />
-        <lang acceptLang="es-Mx,es,en" egs="es-MX" fonts="EU" full="latam" languageBar="false" localeRfcName="es-mx" short="es_mx" />
-        <lang acceptLang="nl,en" egs="" fonts="EU" full="dutch" languageBar="false" localeRfcName="nl" short="nl" />
     </lang_mapping>
 </locale_config>
 '''
 
-text_mode_selection = "请选择安装模式："
+text_mo_source = '''汉化文件来源：
+1.（实验性）下载最新[正式服]汉化文件；
+2.（实验性）下载最新[测试服]汉化文件；
+3.使用本地文件。
+'''
+
+text_mo_source_selection = "请选择汉化文件来源："
 
 text_use_builtin = "是否使用程序自带备用文件？输入Y以同意。若上次安装后游戏字符仍被显示为空心方块，请考虑使用备用文件。"
 
@@ -83,6 +76,8 @@ text_server_list = '''服务器列表：
 
 text_select_server = "请选择客户端所在的服务器："
 
+text_mode_selection = "请选择安装模式："
+
 text_mo_replace_mode = '''汉化文件安装模式：
 1.安装到res_mods文件夹下（推荐：客户端非版本大更新时不会重置语言文件）；
 2.安装到res文件夹下，备份并覆盖原文件；
@@ -93,12 +88,6 @@ text_locale_cfg_replace_mode = '''语言配置文件安装模式：
 1.安装到res_mods文件夹下（推荐：客户端非版本大更新时不会重置语言配置文件）；
 2.安装到res文件夹下，备份并覆盖原文件；
 3.不安装。
-'''
-
-text_report_choice = '''
-您可以直接退出程序，或进行以下操作：
-1.向Gitee仓库镜像报告程序错误；
-2.（需要科学上网）向GitHub仓库报告程序错误。
 '''
 
 text_report_desc = '''请以“汉化安装器报错”为标题创建一个新Issue，内容应包含：
@@ -158,11 +147,11 @@ def run():
     print(
         f"已找到安装目录下最新的两个版本号子文件夹：{first}、{second}" if second_dir_exists else f"已找到安装目录下最新的版本号子文件夹：{first}")
 
-    global_mo_path = input(
-        "请输入您下载的global.mo文件的绝对路径，您可以尝试将文件直接拖入本程序运行的命令行页面以快速输入：")
+    global_mo_path = _fetch_l10n_mo()
 
     while not os.path.isfile(global_mo_path):
-        global_mo_path = input("global.mo文件路径错误，请重新输入：")
+        print("mo文件读取失败，请重新选择mo来源。")
+        global_mo_path = _fetch_l10n_mo()
 
     print(text_mode_selection)
     try:
@@ -319,25 +308,102 @@ def _modify_cfg(cfg_path_old: Path, cfg_path_new: Path, backup: bool) -> bool:
         accept_lang = lang_elem.get('acceptLang')
         if accept_lang == 'ru':
             lang_elem.set('fonts', 'CN')
+            lang_elem.set('languageBar', 'true')
             executed = True
 
     tree.write(cfg_path_new)
     return executed
 
 
-exit_with_confirm = True
-try:
-    run()
-    if launcher_file != "" and os.path.isfile(launcher_file):
-        run_game = input("是否启动战舰世界？输入Y后按回车键启动。")
-        if run_game.lower() == "y":
-            exit_with_confirm = False
-            subprocess.run(launcher_file)
-except Exception as e:
-    feedback = input(f"发生异常！异常信息：{e}。" + text_report_choice)
-    if feedback == "1":
-        webbrowser.open("https://gitee.com/nova-committee/korabli-LESTA-L10N/issues/new")
-    elif feedback == "2":
-        webbrowser.open("https://github.com/LocalizedKorabli/L10nInstaller/issues/new")
-if exit_with_confirm:
-    input("按回车键退出。")
+def _fetch_l10n_mo() -> str:
+    print(text_mo_source)
+    selection = input(text_mo_source_selection)
+    if selection == '1' or '2':
+        return _download_mo(selection == '1')
+    return input("请输入您下载的mo文件的绝对路径，您可以尝试将文件直接拖入本程序运行的命令行页面以快速输入：")
+
+
+def _download_mo(release: bool) -> str:
+    suffix = "release" if release else "pt"
+    artifact_version = "1.0.0" if release else "2.0.0"
+    output_file = f"l10n_installer/downloads/l10n_{suffix}.zip"
+    artifact_url = "https://maven.nova-committee.cn/releases/korabli/localized/l10n/" \
+                   f"{artifact_version}/l10n-{artifact_version}.jar"
+    proxies = {scheme: f"{scheme}://{proxy}" for scheme, proxy in urllib.request.getproxies().items()}
+    print("连接中……")
+    try:
+        response = requests.get(artifact_url, proxies=proxies)
+        status = response.status_code
+        if status == 200:
+            print("连接成功，开始下载……")
+            with open(output_file, 'wb') as f:
+                # 迭代响应流并写入文件
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+            print("下载完成！解压中……")
+            with zipfile.ZipFile(output_file, 'r') as mo_zip:
+                extracted_file = f"l10n_installer/downloads/global_{suffix}.mo"
+                mo_files = [info for info in mo_zip.filelist if info.filename.endswith('.mo')]
+                if mo_files:
+                    mo_file_name = mo_files[0].filename
+                    mo_zip.extract(mo_file_name, "l10n_installer/downloads")
+                    shutil.move(os.path.join("l10n_installer/downloads", mo_file_name),
+                                os.path.join("l10n_installer/downloads", f'global_{suffix}.mo'))
+                    print("解压完成！")
+                    return extracted_file
+                else:
+                    print("未在已下载的文件中找到mo文件！请尝试重新下载，或与开发者联系。")
+                    return ""
+        else:
+            print(f"连接失败，返回状态码：{status}")
+            return ""
+    except requests.exceptions.RequestException as ex:
+        print(f"发生异常！异常信息：\n{ex}\n如果您在使用代理，请先关闭代理再尝试！")
+        return ""
+
+
+def get_report_choice(str_path: str) -> str:
+    return f'''
+日志文件位于{Path(str_path).absolute().resolve()}
+您可以直接退出程序，或进行以下操作：
+1.向Gitee仓库镜像报告程序错误，并附上运行目录下的l10n_installer_output.log文件；
+2.（需要科学上网）向GitHub仓库报告程序错误，并附上运行目录下的l10n_installer_output.log文件。
+'''
+
+
+class SavedOut(object):
+    def __init__(self, *files):
+        self.files = files
+
+    def write(self, obj):
+        for file in self.files:
+            file.write(obj)
+            file.flush()  # 确保立即刷新缓冲区
+
+    def flush(self):
+        for file in self.files:
+            file.flush()
+
+
+os.makedirs('l10n_installer/downloads', exist_ok=True)
+os.makedirs('l10n_installer/logs', exist_ok=True)
+log_file_path = f'l10n_installer/logs/output_{time.time_ns()}.log'
+with open(log_file_path, 'w') as log:
+    exit_with_confirm = True
+    sys.stdout = SavedOut(sys.stdout, log)
+    try:
+        run()
+        if launcher_file != "" and os.path.isfile(launcher_file):
+            run_game = input("是否启动战舰世界？输入Y后按回车键启动。")
+            if run_game.lower() == "y":
+                exit_with_confirm = False
+                subprocess.run(launcher_file)
+    except Exception as e:
+        feedback = input(f"发生异常！异常信息：\n{e}\n" + get_report_choice(log_file_path))
+        if feedback == "1":
+            webbrowser.open("https://gitee.com/nova-committee/korabli-LESTA-L10N/issues/new")
+        elif feedback == "2":
+            webbrowser.open("https://github.com/LocalizedKorabli/L10nInstaller/issues/new")
+    if exit_with_confirm:
+        input("按回车键退出。")
