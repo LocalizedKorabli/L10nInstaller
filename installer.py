@@ -1,5 +1,5 @@
 # Consumable Camouflage replacer
-# Copyright (C) 2023 MikhailTapio
+# Copyright (C) 2024 MikhailTapio
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -337,7 +337,6 @@ def _download_mo(release: bool) -> str:
         if status == 200:
             print("连接成功，开始下载……")
             with open(output_file, 'wb') as f:
-                # 迭代响应流并写入文件
                 for chunk in response.iter_content(chunk_size=1024):
                     if chunk:
                         f.write(chunk)
@@ -379,7 +378,7 @@ class SavedOut(object):
     def write(self, obj):
         for file in self.files:
             file.write(obj)
-            file.flush()  # 确保立即刷新缓冲区
+            file.flush()
 
     def flush(self):
         for file in self.files:
