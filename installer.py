@@ -23,18 +23,20 @@ import webbrowser
 import xml.etree.ElementTree as ETree
 import zipfile
 from pathlib import Path
+from typing import List, Dict
 
 import polib
 import requests
 
-version = "2024.06.28.1800"
+version = "2024.06.30.1912"
 
 base_path: str = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
 resource_path: str = os.path.join(base_path, "resources")
 
 available_launchers = [
     "lgc_api.exe",
-    "wgc_api.exe"
+    "wgc_api.exe",
+    "wgc360_api.exe"
 ]
 
 launcher_file = ""
@@ -164,7 +166,7 @@ text_report_desc = '''请以“汉化安装器报错”为标题创建一个新I
 2.异常发生时，汉化安装正进行到哪一步。
 '''
 
-server_dict: dict[str, str] = {
+server_dict: Dict[str, str] = {
     '1': 'ru',
     '2': 'zh_sg',
     '3': 'zh'
@@ -194,7 +196,7 @@ def run():
         return
 
     folder = Path("bin")
-    subdirectories: list[str] = [subdir.name for subdir in folder.iterdir() if subdir.is_dir()]
+    subdirectories: List[str] = [subdir.name for subdir in folder.iterdir() if subdir.is_dir()]
 
     first = "0"
     second = "0"
@@ -456,19 +458,19 @@ def _fetch_l10n_mo() -> str:
     selection = input(text_mo_source_selection)
     release_selected = selection == '1' or selection == ''
     if release_selected or selection == '2':
-        download_settings: list[dict[str, str]] = _get_download_settings().get('r' if release_selected else 'pt')
+        download_settings: List[Dict[str, str]] = _get_download_settings().get('r' if release_selected else 'pt')
         _list_download_server(download_settings)
         download_server_selection_raw = input(text_download_server_selection)
         if download_server_selection_raw == '0':
             return ""
         download_server_selection = 0 if download_server_selection_raw == '' else (
-                    int(download_server_selection_raw) - 1)
-        server: dict[str, str] = download_settings[download_server_selection]
+                int(download_server_selection_raw) - 1)
+        server: Dict[str, str] = download_settings[download_server_selection]
         return _download_mo(release_selected, server.get('url'), server.get('wrapped'), server.get('delay'))
     return input("请输入您下载的mo文件的绝对路径，您可以尝试将文件直接拖入本程序运行的命令行页面以快速输入：")
 
 
-def _list_download_server(download_settings: list[dict[str, str]]):
+def _list_download_server(download_settings: List[Dict[str, str]]):
     if len(download_settings) == 0:
         print("配置文件中没有适用于该类型的下载路线！输入0并回车以重新选择。")
     else:
@@ -481,7 +483,7 @@ def _list_download_server(download_settings: list[dict[str, str]]):
             i += 1
 
 
-def _get_download_settings() -> dict[str, list[dict[str, str]]]:
+def _get_download_settings() -> Dict[str, List[Dict[str, str]]]:
     if not os.path.isfile('l10n_installer/settings/download.json'):
         with open('l10n_installer/settings/download.json', 'w', encoding='utf-8') as file:
             json.dump(download_servers, file, ensure_ascii=False, indent=4)
@@ -516,7 +518,7 @@ def _download_mo(release: bool, url: str, wrapped: bool, delay: bool) -> str:
                     if manifest_files:
                         manifest_file_name = manifest_files[0].filename
                         mo_zip.extract(manifest_file_name, "l10n_installer/downloads")
-                        properties: dict[str, str] = {}
+                        properties: Dict[str, str] = {}
                         with open(os.path.join("l10n_installer/downloads", manifest_file_name), 'r', encoding='utf-8') \
                                 as file:
                             for line in file:
@@ -569,7 +571,7 @@ def _download_mo(release: bool, url: str, wrapped: bool, delay: bool) -> str:
         return ""
 
 
-def _check_mods() -> list[str]:
+def _check_mods() -> List[str]:
     files = os.listdir("l10n_installer/mods")
     return [("l10n_installer/mods/" + file) for file in files if (file.endswith(".po") or file.endswith(".mo"))]
 
@@ -585,7 +587,7 @@ def _notify_modification(msgid: str, old_str: str, new_str: str):
     print("")
 
 
-def _notify_modification_plural(msgid: str, old_strs: dict[int, str], new_strs: dict[int, str]):
+def _notify_modification_plural(msgid: str, old_strs: Dict[int, str], new_strs: Dict[int, str]):
     print("")
     print(splitter_str)
     print(f"修改“{msgid}”键：")
@@ -607,7 +609,7 @@ def _notify_addition(msgid: str, new_str: str):
     print("")
 
 
-def _notify_addition_plural(msgid: str, new_strs: dict[int, str]):
+def _notify_addition_plural(msgid: str, new_strs: Dict[int, str]):
     print("")
     print(splitter_str)
     print(f"添加“{msgid}”键：")
@@ -624,7 +626,7 @@ def _process_modification_file(source_po, translated_path: str):
         translated = polib.mofile(translated_path)
     source_dict_singular = {entry.msgid: entry.msgstr for entry in source_po}
     translation_dict_singular = {entry.msgid: entry.msgstr for entry in translated if entry.msgid != ""}
-    translation_dict_plural: dict[str, list[str]] = {entry.msgid_plural: entry.msgstr_plural for entry in
+    translation_dict_plural: Dict[str, List[str]] = {entry.msgid_plural: entry.msgstr_plural for entry in
                                                      translated if entry.msgid_plural != ""}
     singular_count = len(translation_dict_singular)
     plural_count = len(translation_dict_singular)
@@ -702,3 +704,5 @@ with open(log_file_path, 'w', encoding="utf-8") as log:
             webbrowser.open("https://github.com/LocalizedKorabli/L10nInstaller/issues/new")
     if exit_with_confirm:
         input("按回车键退出。")
+
+# pyinstaller -i icon.ico --onefile --add-data "resources\*;resources" installer.py --clean
