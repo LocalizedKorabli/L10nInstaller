@@ -23,12 +23,12 @@ import webbrowser
 import xml.etree.ElementTree as ETree
 import zipfile
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
 
 import polib
 import requests
 
-version = "2024.06.30.1912"
+version = "2024.07.01.1738"
 
 base_path: str = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
 resource_path: str = os.path.join(base_path, "resources")
@@ -69,7 +69,7 @@ text_mo_source = '''汉化文件来源：
 
 text_mo_source_selection = "请选择汉化文件来源："
 
-download_servers = {
+download_settings_default = {
     "r": [
         {
             "name": "Gitee",
@@ -123,7 +123,11 @@ download_servers = {
             "wrapped": False,
             "delay": False
         }
-    ]
+    ],
+    "update": {
+        "enabled": True,
+        "version": version
+    }
 }
 
 text_download_server_selection = "请选择下载线路："
@@ -153,6 +157,11 @@ text_mo_replace_mode = '''汉化文件安装模式：
 1.安装到res_mods文件夹下（推荐：客户端非版本大更新时不会重置语言文件）；
 2.安装到res文件夹下，备份并覆盖原文件；
 3.不安装。
+'''
+
+text_remove_length_limit = '''是否安装“解除战斗加载界面船名长度限制”模组？
+安装后，包含6个中文字符的船名不再会被省略。
+留空或输入Y，并按回车以安装：
 '''
 
 text_locale_cfg_replace_mode = '''语言配置文件安装模式：
@@ -289,15 +298,13 @@ def run():
         except ValueError:
             installation_locale = 3
 
-    logo_path_1 = Path("bin").joinpath(first).joinpath("res_mods").joinpath("gui").joinpath("game_loading")
-    os.makedirs(logo_path_1, exist_ok=True)
-    shutil.copy(os.path.join(resource_path, "game_logo.svg"), logo_path_1.joinpath("game_logo.svg"))
-    shutil.copy(os.path.join(resource_path, "game_logo_static.svg"), logo_path_1.joinpath("game_logo_static.svg"))
+    remove_length_limit_raw = input(text_remove_length_limit)
+
+    remove_length_limit = remove_length_limit_raw == '' or remove_length_limit_raw.lower() == 'y'
+
+    _add_client_mod(first, remove_length_limit)
     if second_dir_exists:
-        logo_path_2 = Path("bin").joinpath(second).joinpath("res_mods").joinpath("gui").joinpath("game_loading")
-        os.makedirs(logo_path_2, exist_ok=True)
-        shutil.copy(os.path.join(resource_path, "game_logo.svg"), logo_path_2.joinpath("game_logo.svg"))
-        shutil.copy(os.path.join(resource_path, "game_logo_static.svg"), logo_path_2.joinpath("game_logo_static.svg"))
+        _add_client_mod(second, remove_length_limit)
 
     if installation_locale == 1:
         shutil.copy(global_mo_path, _get_res_mods_mo_path(first, server))
@@ -435,6 +442,19 @@ def _get_res_mods_locale_cfg_path(game_version: str) -> Path:
     return dir_path.joinpath("locale_config.xml")
 
 
+def _add_client_mod(target_dir: str, rll: bool):
+    logo_path = Path("bin").joinpath(target_dir).joinpath("res_mods").joinpath("gui").joinpath("game_loading")
+    os.makedirs(logo_path, exist_ok=True)
+    shutil.copy(os.path.join(resource_path, "game_logo.svg"), logo_path.joinpath("game_logo.svg"))
+    shutil.copy(os.path.join(resource_path, "game_logo_static.svg"), logo_path.joinpath("game_logo_static.svg"))
+    if rll:
+        rll_path = Path("bin").joinpath(target_dir).joinpath("res_mods").joinpath("gui").joinpath("unbound2") \
+            .joinpath("pc").joinpath("battle").joinpath("battle_loading")
+        os.makedirs(rll_path, exist_ok=True)
+        shutil.copy(os.path.join(resource_path, "team_battle_page.unbound"), rll_path.joinpath("team_battle_page"
+                                                                                               ".unbound"))
+
+
 def _modify_cfg(cfg_path_old: Path, cfg_path_new: Path, backup: bool) -> bool:
     tree = ETree.parse(cfg_path_old)
     if backup:
@@ -483,10 +503,20 @@ def _list_download_server(download_settings: List[Dict[str, str]]):
             i += 1
 
 
-def _get_download_settings() -> Dict[str, List[Dict[str, str]]]:
+def _get_download_settings() -> Dict[str, Any]:
     if not os.path.isfile('l10n_installer/settings/download.json'):
         with open('l10n_installer/settings/download.json', 'w', encoding='utf-8') as file:
-            json.dump(download_servers, file, ensure_ascii=False, indent=4)
+            json.dump(download_settings_default, file, ensure_ascii=False, indent=4)
+    result: Dict[str, Any] = None
+    with open('l10n_installer/settings/download.json', 'r', encoding='utf-8') as file:
+        result = json.load(file)
+        if 'update' in result.keys():
+            update_info: Dict[str, Any] = result.get('update')
+            if 'enabled' in update_info:
+                if not update_info.get('enabled') or update_info.get('version') == version:
+                    return result
+    with open('l10n_installer/settings/download.json', 'w', encoding='utf-8') as file:
+        json.dump(download_settings_default, file, ensure_ascii=False, indent=4)
     with open('l10n_installer/settings/download.json', 'r', encoding='utf-8') as file:
         return json.load(file)
 
