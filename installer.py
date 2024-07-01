@@ -28,7 +28,7 @@ from typing import List, Dict, Any
 import polib
 import requests
 
-version = "2024.07.01.1738"
+version = "2024.07.01.1910"
 
 base_path: str = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
 resource_path: str = os.path.join(base_path, "resources")
@@ -124,6 +124,10 @@ download_settings_default = {
             "delay": False
         }
     ],
+    "rll": [
+        "https://gitee.com/localized-korabli/Korabli-LESTA-L10N/raw/main/BuiltInMods/team_battle_page.unbound",
+        "https://github.com/LocalizedKorabli/Korabli-LESTA-L10N/raw/main/BuiltInMods/team_battle_page.unbound"
+    ],
     "update": {
         "enabled": True,
         "version": version
@@ -159,9 +163,13 @@ text_mo_replace_mode = '''汉化文件安装模式：
 3.不安装。
 '''
 
-text_remove_length_limit = '''是否安装“解除战斗加载界面船名长度限制”模组？
-安装后，包含6个中文字符的船名不再会被省略。
+text_download_rll = '''是否下载并安装RLL模组？
+安装后，战斗加载界面内包含6个中文字符的船名不再会被省略。
 留空或输入Y，并按回车以安装：
+'''
+
+text_download_rll_retry = '''是否重新尝试下载RLL模组？
+输入Y并按回车以重新尝试。
 '''
 
 text_locale_cfg_replace_mode = '''语言配置文件安装模式：
@@ -240,12 +248,12 @@ def run():
             source_mo = polib.mofile(global_mo_path)
             print(f"找到{len(mods)}个po/mo模组")
             for path in mods:
-                print(f"应用{path}到{global_mo_path}……")
+                print(f"应用{path}到{global_mo_path}…")
                 try:
                     _process_modification_file(source_mo, path)
                 except Exception as ex:
                     print(f"应用模组“{path}”时发生异常！异常信息：{ex}")
-            print("修改完成，正在保存……")
+            print("修改完成，正在保存…")
             modified_mo_path = f"l10n_installer/processed/modified_{time.time_ns()}.mo"
             source_mo.save(modified_mo_path)
             print(f"修改后的本地化文件已保存到{modified_mo_path}。")
@@ -298,13 +306,17 @@ def run():
         except ValueError:
             installation_locale = 3
 
-    remove_length_limit_raw = input(text_remove_length_limit)
+    remove_length_limit_raw = input(text_download_rll)
 
-    remove_length_limit = remove_length_limit_raw == '' or remove_length_limit_raw.lower() == 'y'
+    remove_length_limit: (bool, bool) = (remove_length_limit_raw == '' or remove_length_limit_raw.lower() == 'y'), False
 
-    _add_client_mod(first, remove_length_limit)
+    if remove_length_limit[0]:
+        while remove_length_limit[0]:
+            remove_length_limit = _download_rll()
+
+    _add_client_mod(first, remove_length_limit[1])
     if second_dir_exists:
-        _add_client_mod(second, remove_length_limit)
+        _add_client_mod(second, remove_length_limit[1])
 
     if installation_locale == 1:
         shutil.copy(global_mo_path, _get_res_mods_mo_path(first, server))
@@ -449,10 +461,10 @@ def _add_client_mod(target_dir: str, rll: bool):
     shutil.copy(os.path.join(resource_path, "game_logo_static.svg"), logo_path.joinpath("game_logo_static.svg"))
     if rll:
         rll_path = Path("bin").joinpath(target_dir).joinpath("res_mods").joinpath("gui").joinpath("unbound2") \
-            .joinpath("pc").joinpath("battle").joinpath("battle_loading")
+            .joinpath("mods").joinpath("RemoveLengthLimit").joinpath("battle").joinpath("battle_loading")
         os.makedirs(rll_path, exist_ok=True)
-        shutil.copy(os.path.join(resource_path, "team_battle_page.unbound"), rll_path.joinpath("team_battle_page"
-                                                                                               ".unbound"))
+        shutil.copy("l10n_installer/downloads/team_battle_page.unbound", rll_path.joinpath("team_battle_page"
+                                                                                           ".unbound"))
 
 
 def _modify_cfg(cfg_path_old: Path, cfg_path_new: Path, backup: bool) -> bool:
@@ -507,7 +519,6 @@ def _get_download_settings() -> Dict[str, Any]:
     if not os.path.isfile('l10n_installer/settings/download.json'):
         with open('l10n_installer/settings/download.json', 'w', encoding='utf-8') as file:
             json.dump(download_settings_default, file, ensure_ascii=False, indent=4)
-    result: Dict[str, Any] = None
     with open('l10n_installer/settings/download.json', 'r', encoding='utf-8') as file:
         result = json.load(file)
         if 'update' in result.keys():
@@ -527,12 +538,12 @@ def _download_mo(release: bool, url: str, wrapped: bool, delay: bool) -> str:
     f_ext = "zip" if wrapped else "mo"
     output_file = f"l10n_installer/downloads/{f_prefix}{f_suffix}.{f_ext}"
     proxies = {scheme: proxy for scheme, proxy in urllib.request.getproxies().items()}
-    print("连接中……")
+    print("连接中…")
     try:
         response = requests.get(url, stream=True, proxies=proxies)
         status = response.status_code
         if status == 200:
-            print("连接成功，开始下载……")
+            print("连接成功，开始下载…")
             with open(output_file, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=1024):
                     if chunk:
@@ -542,7 +553,7 @@ def _download_mo(release: bool, url: str, wrapped: bool, delay: bool) -> str:
             if delay:
                 print("请注意，考虑到同步延迟，该线路下载的文件可能不是最新版本。")
             if wrapped:
-                print("解压中……")
+                print("解压中…")
                 with zipfile.ZipFile(output_file, 'r') as mo_zip:
                     manifest_files = [info for info in mo_zip.filelist if info.filename.endswith("MANIFEST.MF")]
                     if manifest_files:
@@ -599,6 +610,36 @@ def _download_mo(release: bool, url: str, wrapped: bool, delay: bool) -> str:
     except requests.exceptions.RequestException as ex:
         print(f"发生异常！异常信息：\n{ex}\n如果您在使用代理，请先关闭代理再尝试！")
         return ""
+
+
+def _download_rll() -> (bool, bool):
+    output_file = "l10n_installer/downloads/team_battle_page.unbound"
+    proxies = {scheme: proxy for scheme, proxy in urllib.request.getproxies().items()}
+    rll_urls: List[str] = _get_download_settings().get('rll')
+    print(f"找到{len(rll_urls)}条下载线路。")
+    tries = 1
+    for url in rll_urls:
+        print(f"正在尝试第{tries}条线路…")
+        tries += 1
+        print("连接中…")
+        try:
+            response = requests.get(url, stream=True, proxies=proxies)
+            status = response.status_code
+            if status == 200:
+                print("连接成功，开始下载…")
+                with open(output_file, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=1024):
+                        if chunk:
+                            f.write(chunk)
+                print("下载完成！")
+                return False, True
+            else:
+                print(f"连接失败，返回状态码：{status}\n")
+        except requests.exceptions.RequestException as ex:
+            print(f"发生异常！异常信息：\n{ex}\n")
+    print("以上所有线路均下载失败。")
+    continue_rll_raw = input(text_download_rll_retry)
+    return continue_rll_raw.lower() == 'y', False
 
 
 def _check_mods() -> List[str]:
