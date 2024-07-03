@@ -28,7 +28,7 @@ from typing import List, Dict, Any
 import polib
 import requests
 
-version = "2024.07.01.1910"
+version = "2024.07.03.1331"
 
 base_path: str = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
 resource_path: str = os.path.join(base_path, "resources")
@@ -49,6 +49,22 @@ text_welcome_message = f'''战舰世界本地化安装器
 许可证：GNU-AGPL-3.0-only
 源代码地址：https://github.com/LocalizedKorabli/L10nInstaller
 '''
+
+installer_settings_default = {
+    "autoUpdate": True,
+    "version": version,
+    "updates": [
+        {
+            "ver": "https://gitee.com/localized-korabli/Korabli-LESTA-L10N/raw/main/Installer/version.info",
+            "exe": "https://gitee.com/localized-korabli/Korabli-LESTA-L10N/raw/main/Installer/L10nInstaller.exe"
+        },
+        {
+            "ver": "https://raw.githubusercontent.com/LocalizedKorabli/Korabli-LESTA-L10N/main/Installer/version.info",
+            "exe": "https://raw.githubusercontent.com/LocalizedKorabli/Korabli-LESTA-L10N/main/Installer"
+                   "/L10nInstaller.exe"
+        }
+    ]
+}
 
 text_builtin_cfg = '''<locale_config>
     <locale_id>ru</locale_id>
@@ -196,6 +212,9 @@ def run():
     if debug == "debug":
         print("进入DEBUG模式，将抛出异常。")
         raise RuntimeError("DEBUG")
+    _clean_old_installers()
+    if _update_installer():
+        sys.exit()
     global launcher_file
     for launcher in available_launchers:
         if os.path.isfile(launcher):
@@ -421,6 +440,27 @@ def run():
             input("安装已结束，按回车键继续。")
     else:
         input("已跳过语言配置文件安装，按回车键继续。")
+
+    if launcher_file != "" and os.path.isfile(launcher_file):
+        run_game = input("是否启动战舰世界？输入Y后按回车键启动。")
+        if run_game.lower() == "y":
+            subprocess.run(launcher_file)
+    else:
+        input("按回车键退出。")
+
+
+def _get_installer_settings() -> Dict[str, Any]:
+    if not os.path.isfile('l10n_installer/settings/installer.json'):
+        with open('l10n_installer/settings/installer.json', 'w', encoding='utf-8') as file:
+            json.dump(installer_settings_default, file, ensure_ascii=False, indent=4)
+    with open('l10n_installer/settings/installer.json', 'r', encoding='utf-8') as file:
+        result = json.load(file)
+        if 'version' in result.keys() and result.get('version') == version:
+            return result
+    with open('l10n_installer/settings/installer.json', 'w', encoding='utf-8') as file:
+        json.dump(installer_settings_default, file, ensure_ascii=False, indent=4)
+    with open('l10n_installer/settings/installer.json', 'r', encoding='utf-8') as file:
+        return json.load(file)
 
 
 def _get_mo_dir_path(game_version: str, server: str) -> Path:
@@ -736,6 +776,96 @@ def _get_report_choice(str_path: str) -> str:
 '''
 
 
+def _clean_old_installers():
+    for file in os.listdir('.'):
+        if "L10nInstaller-v" in file and ".exe" in file and version not in file:
+            try:
+                os.remove(file)
+                print(f"正在删除旧版本安装器文件{file}")
+            except Exception:
+                continue
+
+
+def _update_installer() -> bool:
+    installer_settings = _get_installer_settings()
+    if not installer_settings.get('autoUpdate'):
+        print("自动更新已关闭，若需要请在l10n_installer/settings/installer.json中重新打开。")
+        return False
+    print("准备自动更新…")
+    info_file = f"l10n_installer/cache/version.info"
+    proxies = {scheme: proxy for scheme, proxy in urllib.request.getproxies().items()}
+    updates: List[Dict[str, str]] = installer_settings.get('updates')
+    updates_count = len(updates)
+    if updates_count == 0:
+        print("未找到更新线路，跳过更新。")
+    tries = 1
+    for update in updates:
+        print(f"正在尝试第{tries}条线路…")
+        tries += 1
+        print("连接中…")
+        try:
+            response = requests.get(update.get('ver'), stream=True, proxies=proxies)
+            status = response.status_code
+            if status == 200:
+                print("开始获取版本信息…")
+                with open(info_file, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=1024):
+                        if chunk:
+                            f.write(chunk)
+                with open(info_file, 'r') as f:
+                    remote_version = f.readline()
+                print(f"本地：{version}；远程：{remote_version}")
+                if _compare_versions(version, remote_version) < 0:
+                    print("开始更新…")
+                    exe_file = _get_updated_exe_file(remote_version)
+                    try:
+                        response = requests.get(update.get('exe'), stream=True, proxies=proxies)
+                        status = response.status_code
+                        if status == 200:
+                            print("连接成功，开始更新…")
+                            with open(exe_file, 'wb') as f:
+                                for chunk in response.iter_content(chunk_size=1024):
+                                    if chunk:
+                                        f.write(chunk)
+                            print("更新下载完成！")
+                            subprocess.run(exe_file)
+                            return True
+                        else:
+                            print(f"连接失败，返回状态码：{status}\n")
+                            continue
+                    except requests.exceptions.RequestException as ex:
+                        print(f"发生异常！异常信息：\n{ex}\n")
+                        continue
+                else:
+                    print("已是最新版。")
+                    return False
+            else:
+                print(f"获取失败，返回状态码：{status}\n")
+                continue
+        except requests.exceptions.RequestException as ex:
+            print(f"发生异常！异常信息：\n{ex}\n")
+            continue
+    print("未安装更新。")
+    return False
+
+
+def _compare_versions(v1: str, v2: str) -> int:
+    if v1 == v2:
+        return 0
+    v1_num = int(v1.replace('.', ''))
+    v2_num = int(v2.replace('.', ''))
+    return 0 if v1_num == v2_num else -1 if v1_num < v2_num else 1
+
+
+def _get_updated_exe_file(exe_version: str) -> str:
+    updated_file_name_template = f"L10nInstaller-v{exe_version}"
+    updated_file_name = updated_file_name_template + ".exe"
+    count = 1
+    while updated_file_name in os.listdir('.'):
+        updated_file_name = updated_file_name_template + f"{count}.exe"
+    return updated_file_name
+
+
 class SavedOut(object):
     def __init__(self, *files):
         self.files = files
@@ -758,22 +888,14 @@ os.makedirs('l10n_installer/processed', exist_ok=True)
 os.makedirs('l10n_installer/settings', exist_ok=True)
 log_file_path = f'l10n_installer/logs/output_{time.time_ns()}.log'
 with open(log_file_path, 'w', encoding="utf-8") as log:
-    exit_with_confirm = True
     sys.stdout = SavedOut(sys.stdout, log)
     try:
         run()
-        if launcher_file != "" and os.path.isfile(launcher_file):
-            run_game = input("是否启动战舰世界？输入Y后按回车键启动。")
-            if run_game.lower() == "y":
-                exit_with_confirm = False
-                subprocess.run(launcher_file)
     except Exception as e:
         feedback = input(f"发生异常！异常信息：\n{e}\n\n" + _get_report_choice(log_file_path))
         if feedback == "1":
             webbrowser.open("https://gitee.com/nova-committee/korabli-LESTA-L10N/issues/new")
         elif feedback == "2":
             webbrowser.open("https://github.com/LocalizedKorabli/L10nInstaller/issues/new")
-    if exit_with_confirm:
-        input("按回车键退出。")
 
 # pyinstaller -i icon.ico --onefile --add-data "resources\*;resources" installer.py --clean
