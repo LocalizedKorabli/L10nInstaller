@@ -28,10 +28,10 @@ from typing import List, Dict, Any
 import polib
 import requests
 
-version = "2024.07.03.1331"
+version = "2024.07.25.1945"
 
-base_path: str = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
-resource_path: str = os.path.join(base_path, "resources")
+# base_path: str = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
+# resource_path: str = os.path.join(base_path, "resources")
 
 available_launchers = [
     "lgc_api.exe",
@@ -48,6 +48,13 @@ text_welcome_message = f'''战舰世界本地化安装器
 版本：{version}
 许可证：GNU-AGPL-3.0-only
 源代码地址：https://github.com/LocalizedKorabli/L10nInstaller
+'''
+
+text_warning_minimal_support = f'''
+注意：
+自2024年7月25日起，LocalizedKorabli仅对此基于命令行的安装器提供最小支持（Minimal Support），
+即除非出现重大漏洞，本项目不再受到任何更新。
+建议通过蓝奏云（https://tapio.lanzn.com/b0nybehgb）下载使用基于图形界面（GUI）的新版安装器！
 '''
 
 installer_settings_default = {
@@ -72,7 +79,7 @@ text_builtin_cfg = '''<locale_config>
     <text_domain>global</text_domain>
 
     <lang_mapping>
-        <lang acceptLang="ru" egs="ru" fonts="CN" full="russian" languageBar="true" localeRfcName="ru" short="ru" />
+        <lang acceptLang="ru" egs="ru" fonts="CN" full="schinese" languageBar="true" localeRfcName="ru" short="ru" />
     </lang_mapping>
 </locale_config>
 '''
@@ -94,18 +101,6 @@ download_settings_default = {
             "delay": True
         },
         {
-            "name": "湖北S3",
-            "url": "https://maven.nova-committee.cn/s3/korabli/localized/l10n/1.0.0/l10n-1.0.0.jar",
-            "wrapped": True,
-            "delay": False
-        },
-        {
-            "name": "香港",
-            "url": "https://maven.nova-committee.cn/releases/korabli/localized/l10n/1.0.0/l10n-1.0.0.jar",
-            "wrapped": True,
-            "delay": False
-        },
-        {
             "name": "GitHub",
             "url": "https://github.com/LocalizedKorabli/Korabli-LESTA-L10N/raw/main/Localizations/latest/global.mo",
             "wrapped": False,
@@ -121,18 +116,6 @@ download_settings_default = {
             "delay": True
         },
         {
-            "name": "湖北S3",
-            "url": "https://maven.nova-committee.cn/s3/korabli/localized/l10n/2.0.0/l10n-2.0.0.jar",
-            "wrapped": True,
-            "delay": False
-        },
-        {
-            "name": "香港",
-            "url": "https://maven.nova-committee.cn/releases/korabli/localized/l10n/2.0.0/l10n-2.0.0.jar",
-            "wrapped": True,
-            "delay": False
-        },
-        {
             "name": "GitHub",
             "url": "https://github.com/LocalizedKorabli/Korabli-LESTA-L10N-PublicTest/raw/Localizations/Localizations"
                    "/latest/global.mo",
@@ -140,9 +123,9 @@ download_settings_default = {
             "delay": False
         }
     ],
-    "rll": [
-        "https://gitee.com/localized-korabli/Korabli-LESTA-L10N/raw/main/BuiltInMods/team_battle_page.unbound",
-        "https://github.com/LocalizedKorabli/Korabli-LESTA-L10N/raw/main/BuiltInMods/team_battle_page.unbound"
+    "ee": [
+        "https://gitee.com/localized-korabli/Korabli-LESTA-L10N/raw/main/BuiltInMods/LKExperienceEnhancement.zip",
+        "https://github.com/LocalizedKorabli/Korabli-LESTA-L10N/raw/main/BuiltInMods/LKExperienceEnhancement.zip"
     ],
     "update": {
         "enabled": True,
@@ -179,12 +162,11 @@ text_mo_replace_mode = '''汉化文件安装模式：
 3.不安装。
 '''
 
-text_download_rll = '''是否下载并安装RLL模组？
-安装后，战斗加载界面内包含6个中文字符的船名不再会被省略。
+text_download_ee = '''是否下载并安装体验增强包？
 留空或输入Y，并按回车以安装：
 '''
 
-text_download_rll_retry = '''是否重新尝试下载RLL模组？
+text_download_ee_retry = '''是否重新尝试下载体验增强包？
 输入Y并按回车以重新尝试。
 '''
 
@@ -208,6 +190,7 @@ server_dict: Dict[str, str] = {
 
 def run():
     print(text_welcome_message)
+    print(text_warning_minimal_support)
     debug = input("确保本程序已位于战舰世界客户端安装目录，按回车键继续。")
     if debug == "debug":
         print("进入DEBUG模式，将抛出异常。")
@@ -325,17 +308,19 @@ def run():
         except ValueError:
             installation_locale = 3
 
-    remove_length_limit_raw = input(text_download_rll)
+    experience_enhancement_raw = input(text_download_ee)
 
-    remove_length_limit: (bool, bool) = (remove_length_limit_raw == '' or remove_length_limit_raw.lower() == 'y'), False
+    experience_enhancement: (bool, bool) = (experience_enhancement_raw == ''
+                                            or experience_enhancement_raw.lower() == 'y'), False
 
-    if remove_length_limit[0]:
-        while remove_length_limit[0]:
-            remove_length_limit = _download_rll()
+    if experience_enhancement[0]:
+        while experience_enhancement[0]:
+            experience_enhancement = _download_ee()
 
-    _add_client_mod(first, remove_length_limit[1])
-    if second_dir_exists:
-        _add_client_mod(second, remove_length_limit[1])
+    if experience_enhancement[1]:
+        _add_client_mod(first)
+        if second_dir_exists:
+            _add_client_mod(second)
 
     if installation_locale == 1:
         shutil.copy(global_mo_path, _get_res_mods_mo_path(first, server))
@@ -494,17 +479,11 @@ def _get_res_mods_locale_cfg_path(game_version: str) -> Path:
     return dir_path.joinpath("locale_config.xml")
 
 
-def _add_client_mod(target_dir: str, rll: bool):
-    logo_path = Path("bin").joinpath(target_dir).joinpath("res_mods").joinpath("gui").joinpath("game_loading")
-    os.makedirs(logo_path, exist_ok=True)
-    shutil.copy(os.path.join(resource_path, "game_logo.svg"), logo_path.joinpath("game_logo.svg"))
-    shutil.copy(os.path.join(resource_path, "game_logo_static.svg"), logo_path.joinpath("game_logo_static.svg"))
-    if rll:
-        rll_path = Path("bin").joinpath(target_dir).joinpath("res_mods").joinpath("gui").joinpath("unbound2") \
-            .joinpath("mods").joinpath("RemoveLengthLimit").joinpath("battle").joinpath("battle_loading")
-        os.makedirs(rll_path, exist_ok=True)
-        shutil.copy("l10n_installer/downloads/team_battle_page.unbound", rll_path.joinpath("team_battle_page"
-                                                                                           ".unbound"))
+def _add_client_mod(target_dir: str):
+    target_path = Path("bin").joinpath(target_dir).joinpath("res_mods")
+    os.makedirs(target_path, exist_ok=True)
+    with zipfile.ZipFile("l10n_installer/downloads/LKExperienceEnhancement.zip", 'r') as mo_zip:
+        mo_zip.extractall(target_path)
 
 
 def _modify_cfg(cfg_path_old: Path, cfg_path_new: Path, backup: bool) -> bool:
@@ -564,7 +543,9 @@ def _get_download_settings() -> Dict[str, Any]:
         if 'update' in result.keys():
             update_info: Dict[str, Any] = result.get('update')
             if 'enabled' in update_info:
-                if not update_info.get('enabled') or update_info.get('version') == version:
+                # if not update_info.get('enabled') or update_info.get('version') == version:
+                # Commented for this should be the final version
+                if update_info.get('version') == version:
                     return result
     with open('l10n_installer/settings/download.json', 'w', encoding='utf-8') as file:
         json.dump(download_settings_default, file, ensure_ascii=False, indent=4)
@@ -652,13 +633,13 @@ def _download_mo(release: bool, url: str, wrapped: bool, delay: bool) -> str:
         return ""
 
 
-def _download_rll() -> (bool, bool):
-    output_file = "l10n_installer/downloads/team_battle_page.unbound"
+def _download_ee() -> (bool, bool):
+    output_file = "l10n_installer/downloads/LKExperienceEnhancement.zip"
     proxies = {scheme: proxy for scheme, proxy in urllib.request.getproxies().items()}
-    rll_urls: List[str] = _get_download_settings().get('rll')
-    print(f"找到{len(rll_urls)}条下载线路。")
+    ee_urls: List[str] = _get_download_settings().get('ee')
+    print(f"找到{len(ee_urls)}条下载线路。")
     tries = 1
-    for url in rll_urls:
+    for url in ee_urls:
         print(f"正在尝试第{tries}条线路…")
         tries += 1
         print("连接中…")
@@ -678,8 +659,8 @@ def _download_rll() -> (bool, bool):
         except requests.exceptions.RequestException as ex:
             print(f"发生异常！异常信息：\n{ex}\n")
     print("以上所有线路均下载失败。")
-    continue_rll_raw = input(text_download_rll_retry)
-    return continue_rll_raw.lower() == 'y', False
+    continue_ee_raw = input(text_download_ee_retry)
+    return continue_ee_raw.lower() == 'y', False
 
 
 def _check_mods() -> List[str]:
@@ -898,4 +879,4 @@ with open(log_file_path, 'w', encoding="utf-8") as log:
         elif feedback == "2":
             webbrowser.open("https://github.com/LocalizedKorabli/L10nInstaller/issues/new")
 
-# pyinstaller -i icon.ico --onefile --add-data "resources\*;resources" installer.py --clean
+# pyinstaller -i icon.ico --onefile installer.py --clean
